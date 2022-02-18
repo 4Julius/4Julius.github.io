@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>4Julius</title>
+<script>
+// ------------------------------------------------------------------------
+// Bubble Shooter Game Tutorial With HTML5 And JavaScript
+// Copyright (c) 2015 Rembound.com
+// 
+// This program is free software: you can redistribute it and/or modify  
+// it under the terms of the GNU General Public License as published by  
+// the Free Software Foundation, either version 3 of the License, or  
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,  
+// but WITHOUT ANY WARRANTY; without even the implied warranty of  
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
+// GNU General Public License for more details.  
+// 
+// You should have received a copy of the GNU General Public License  
+// along with this program.  If not, see http://www.gnu.org/licenses/.
+//
+// http://rembound.com/articles/bubble-shooter-game-tutorial-with-html5-and-javascript
+// ------------------------------------------------------------------------
+
+// The function gets called when the window is fully loaded
+window.onload = function() {
+    // Get the canvas and context
+    var canvas = document.getElementById("viewport");
+    var context = canvas.getContext("2d");
+    
+    // Timing and frames per second
+    var lastframe = 0;
+    var fpstime = 0;
+    var framecount = 0;
+    var fps = 0;
+    
+    var initialized = false;
+    
+    // Level
+    var level = {
+        x: 4,           // X position
+        y: 83,          // Y position
+        width: 0,       // Width, gets calculated
+        height: 0,      // Height, gets calculated
+        columns: 15,    // Number of tile columns
+        rows: 14,       // Number of tile rows
+        tilewidth: 40,  // Visual width of a tile
+        tileheight: 40, // Visual height of a tile
+        rowheight: 34,  // Height of a row
+        radius: 20,     // Bubble collision radius
+        tiles: []       // The two-dimensional tile array
+    };
+
+    // Define a tile class
+    var Tile = function(x, y, type, shift) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.removed = false;
+        this.shift = shift;
+        this.velocity = 0;
+        this.alpha = 1;
+        this.processed = false;
+    };
+    
+    // Player
+    var player = {
+        x: 0,
+        y: 0,
+        angle: 0,
+        tiletype: 0,
+        bubble: {
+                    x: 0,
+                    y: 0,
+                    angle: 0,
+                    speed: 1000,
+                    dropspeed: 900,
+                    tiletype: 0,
+                    visible: false
+                },
+        nextbubble: {
+                        x: 0,
+                        y: 0,
+                        tiletype: 0
+                    }
+    };
+    
+    // Neighbor offset table
+    var neighborsoffsets = [[[1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1]], // Even row tiles
+                            [[1, 0], [1, 1], [0, 1], [-1, 0], [0, -1], [1, -1]]];  // Odd row tiles
+    
+    // Number of different colors
+    var bubblecolors = 7;
+    
+    // Game states
+    var gamestates = { init: 0, ready: 1, shootbubble: 2, removecluster: 3, gameover: 4 };
+    var gamestate = gamestates.init;
+    
+    // Score
+    var score = 0;
+    
+    var turncounter = 0;
+    var rowoffset = 0;
+    
+    // Animation variables
+    var animationstate = 0;
+    var animationtime = 0;
+    
+    // Clusters
+    var showcluster = false;
+    var cluster = [];
+    var floatingclusters = [];
+    
+    // Images
+    var images = [];
+    var bubbleimage;
+    
+    // Image loading global variables
+    var loadcount = 0;
+    var loadtotal = 0;
+    var preloaded = false;
+    
+    // Load images
+    function loadImages() {
+        // Initialize variables
+        preloaded = true;
+        
+        // Load the images
+        var loadedimages = [];
+
+            var image = new Image();
+
+            // Set the source url of the image
+            image.src = 'data:image/png;base64,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' ;
+            
+            // Save to the image array
+            loadedimages[0] = image;
+        
+        
+        // Return an array of images
+        return loadedimages;
+    }
+    
+    // Initialize the game
+    function init() {
+        // Load images
+        images = loadImages();
+        bubbleimage = images[0]
+    
+        // Add mouse events
+        canvas.addEventListener("mousemove", onMouseMove);
+        canvas.addEventListener("mousedown", onMouseDown);
+        
+        // Initialize the two-dimensional tile array
+        for (var i=0; i<level.columns; i++) {
+            level.tiles[i] = [];
+            for (var j=0; j<level.rows; j++) {
+                // Define a tile type and a shift parameter for animation
+                level.tiles[i][j] = new Tile(i, j, 0, 0);
+            }
+        }
+        
+        level.width = level.columns * level.tilewidth + level.tilewidth/2;
+        level.height = (level.rows-1) * level.rowheight + level.tileheight;
+        
+        // Init the player
+        player.x = level.x + level.width/2 - level.tilewidth/2;
+        player.y = level.y + level.height;
+        player.angle = 90;
+        player.tiletype = 0;
+        
+        player.nextbubble.x = player.x - 2 * level.tilewidth;
+        player.nextbubble.y = player.y;
+        
+        // New game
+        newGame();
+        
+        // Enter main loop
+        main(0);
+    }
+    
+    // Main loop
+    function main(tframe) {
+        // Request animation frames
+        window.requestAnimationFrame(main);
+    
+        if (!initialized) {
+            // Preloader
+            
+            // Clear the canvas
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw the frame
+            drawFrame();
+            
+            // Draw a progress bar
+            var loadpercentage = loadcount/loadtotal;
+            context.strokeStyle = "#ff8080";
+            context.lineWidth=3;
+            context.strokeRect(18.5, 0.5 + canvas.height - 51, canvas.width-37, 32);
+            context.fillStyle = "#ff8080";
+            context.fillRect(18.5, 0.5 + canvas.height - 51, loadpercentage*(canvas.width-37), 32);
+            
+            // Draw the progress text
+            var loadtext = "Loaded " + loadcount + "/" + loadtotal + " images";
+            context.fillStyle = "#000000";
+            context.font = "16px Verdana";
+            context.fillText(loadtext, 18, 0.5 + canvas.height - 63);
+            
+            if (preloaded) {
+                // Add a delay for demonstration purposes
+                setTimeout(function(){initialized = true;}, 1000);
+            }
+        } else {
+            // Update and render the game
+            update(tframe);
+            render();
+        }
+    }
+    
+    // Update the game state
+    function update(tframe) {
+        var dt = (tframe - lastframe) / 1000;
+        lastframe = tframe;
+        
+        // Update the fps counter
+        updateFps(dt);
+        
+        if (gamestate == gamestates.ready) {
+            // Game is ready for player input
+        } else if (gamestate == gamestates.shootbubble) {
+            // Bubble is moving
+            stateShootBubble(dt);
+        } else if (gamestate == gamestates.removecluster) {
+            // Remove cluster and drop tiles
+            stateRemoveCluster(dt);
+        }
+    }
+    
+    function setGameState(newgamestate) {
+        gamestate = newgamestate;
+        
+        animationstate = 0;
+        animationtime = 0;
+    }
+    
+    function stateShootBubble(dt) {
+        // Bubble is moving
+        
+        // Move the bubble in the direction of the mouse
+        player.bubble.x += dt * player.bubble.speed * Math.cos(degToRad(player.bubble.angle));
+        player.bubble.y += dt * player.bubble.speed * -1*Math.sin(degToRad(player.bubble.angle));
+        
+        // Handle left and right collisions with the level
+        if (player.bubble.x <= level.x) {
+            // Left edge
+            player.bubble.angle = 180 - player.bubble.angle;
+            player.bubble.x = level.x;
+        } else if (player.bubble.x + level.tilewidth >= level.x + level.width) {
+            // Right edge
+            player.bubble.angle = 180 - player.bubble.angle;
+            player.bubble.x = level.x + level.width - level.tilewidth;
+        }
+ 
+        // Collisions with the top of the level
+        if (player.bubble.y <= level.y) {
+            // Top collision
+            player.bubble.y = level.y;
+            snapBubble();
+            return;
+        }
+        
+        // Collisions with other tiles
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows; j++) {
+                var tile = level.tiles[i][j];
+                
+                // Skip empty tiles
+                if (tile.type < 0) {
+                    continue;
+                }
+                
+                // Check for intersections
+                var coord = getTileCoordinate(i, j);
+                if (circleIntersection(player.bubble.x + level.tilewidth/2,
+                                       player.bubble.y + level.tileheight/2,
+                                       level.radius,
+                                       coord.tilex + level.tilewidth/2,
+                                       coord.tiley + level.tileheight/2,
+                                       level.radius)) {
+                                        
+                    // Intersection with a level bubble
+                    snapBubble();
+                    return;
+                }
+            }
+        }
+    }
+    
+    function stateRemoveCluster(dt) {
+        if (animationstate == 0) {
+            resetRemoved();
+            
+            // Mark the tiles as removed
+            for (var i=0; i<cluster.length; i++) {
+                // Set the removed flag
+                cluster[i].removed = true;
+            }
+            
+            // Add cluster score
+            score += cluster.length * 100;
+            
+            // Find floating clusters
+            floatingclusters = findFloatingClusters();
+            
+            if (floatingclusters.length > 0) {
+                // Setup drop animation
+                for (var i=0; i<floatingclusters.length; i++) {
+                    for (var j=0; j<floatingclusters[i].length; j++) {
+                        var tile = floatingclusters[i][j];
+                        tile.shift = 0;
+                        tile.shift = 1;
+                        tile.velocity = player.bubble.dropspeed;
+                        
+                        score += 100;
+                    }
+                }
+            }
+            
+            animationstate = 1;
+        }
+        
+        if (animationstate == 1) {
+            // Pop bubbles
+            var tilesleft = false;
+            for (var i=0; i<cluster.length; i++) {
+                var tile = cluster[i];
+                
+                if (tile.type >= 0) {
+                    tilesleft = true;
+                    
+                    // Alpha animation
+                    tile.alpha -= dt * 15;
+                    if (tile.alpha < 0) {
+                        tile.alpha = 0;
+                    }
+
+                    if (tile.alpha == 0) {
+                        tile.type = -1;
+                        tile.alpha = 1;
+                    }
+                }                
+            }
+            
+            // Drop bubbles
+            for (var i=0; i<floatingclusters.length; i++) {
+                for (var j=0; j<floatingclusters[i].length; j++) {
+                    var tile = floatingclusters[i][j];
+                    
+                    if (tile.type >= 0) {
+                        tilesleft = true;
+                        
+                        // Accelerate dropped tiles
+                        tile.velocity += dt * 700;
+                        tile.shift += dt * tile.velocity;
+                            
+                        // Alpha animation
+                        tile.alpha -= dt * 8;
+                        if (tile.alpha < 0) {
+                            tile.alpha = 0;
+                        }
+
+                        // Check if the bubbles are past the bottom of the level
+                        if (tile.alpha == 0 || (tile.y * level.rowheight + tile.shift > (level.rows - 1) * level.rowheight + level.tileheight)) {
+                            tile.type = -1;
+                            tile.shift = 0;
+                            tile.alpha = 1;
+                        }
+                    }
+
+                }
+            }
+            
+            if (!tilesleft) {
+                // Next bubble
+                nextBubble();
+                
+                // Check for game over
+                var tilefound = false
+                for (var i=0; i<level.columns; i++) {
+                    for (var j=0; j<level.rows; j++) {
+                        if (level.tiles[i][j].type != -1) {
+                            tilefound = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (tilefound) {
+                    setGameState(gamestates.ready);
+                } else {
+                    // No tiles left, game over
+                    setGameState(gamestates.gameover);
+                }
+            }
+        }
+    }
+    
+    // Snap bubble to the grid
+    function snapBubble() {
+        // Get the grid position
+        var centerx = player.bubble.x + level.tilewidth/2;
+        var centery = player.bubble.y + level.tileheight/2;
+        var gridpos = getGridPosition(centerx, centery);
+
+        // Make sure the grid position is valid
+        if (gridpos.x < 0) {
+            gridpos.x = 0;
+        }
+            
+        if (gridpos.x >= level.columns) {
+            gridpos.x = level.columns - 1;
+        }
+
+        if (gridpos.y < 0) {
+            gridpos.y = 0;
+        }
+            
+        if (gridpos.y >= level.rows) {
+            gridpos.y = level.rows - 1;
+        }
+
+        // Check if the tile is empty
+        var addtile = false;
+        if (level.tiles[gridpos.x][gridpos.y].type != -1) {
+            // Tile is not empty, shift the new tile downwards
+            for (var newrow=gridpos.y+1; newrow<level.rows; newrow++) {
+                if (level.tiles[gridpos.x][newrow].type == -1) {
+                    gridpos.y = newrow;
+                    addtile = true;
+                    break;
+                }
+            }
+        } else {
+            addtile = true;
+        }
+
+        // Add the tile to the grid
+        if (addtile) {
+            // Hide the player bubble
+            player.bubble.visible = false;
+        
+            // Set the tile
+            level.tiles[gridpos.x][gridpos.y].type = player.bubble.tiletype;
+            
+            // Check for game over
+            if (checkGameOver()) {
+                return;
+            }
+            
+            // Find clusters
+            cluster = findCluster(gridpos.x, gridpos.y, true, true, false);
+            
+            if (cluster.length >= 3) {
+                // Remove the cluster
+                setGameState(gamestates.removecluster);
+                return;
+            }
+        }
+        
+        // No clusters found
+        turncounter++;
+        if (turncounter >= 5) {
+            // Add a row of bubbles
+            addBubbles();
+            turncounter = 0;
+            rowoffset = (rowoffset + 1) % 2;
+            
+            if (checkGameOver()) {
+                return;
+            }
+        }
+
+        // Next bubble
+        nextBubble();
+        setGameState(gamestates.ready);
+    }
+    
+    function checkGameOver() {
+        // Check for game over
+        for (var i=0; i<level.columns; i++) {
+            // Check if there are bubbles in the bottom row
+            if (level.tiles[i][level.rows-1].type != -1) {
+                // Game over
+                nextBubble();
+                setGameState(gamestates.gameover);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    function addBubbles() {
+        // Move the rows downwards
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows-1; j++) {
+                level.tiles[i][level.rows-1-j].type = level.tiles[i][level.rows-1-j-1].type;
+            }
+        }
+        
+        // Add a new row of bubbles at the top
+        for (var i=0; i<level.columns; i++) {
+            // Add random, existing, colors
+            level.tiles[i][0].type = getExistingColor();
+        }
+    }
+    
+    // Find the remaining colors
+    function findColors() {
+        var foundcolors = [];
+        var colortable = [];
+        for (var i=0; i<bubblecolors; i++) {
+            colortable.push(false);
+        }
+        
+        // Check all tiles
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows; j++) {
+                var tile = level.tiles[i][j];
+                if (tile.type >= 0) {
+                    if (!colortable[tile.type]) {
+                        colortable[tile.type] = true;
+                        foundcolors.push(tile.type);
+                    }
+                }
+            }
+        }
+        
+        return foundcolors;
+    }
+    
+    // Find cluster at the specified tile location
+    function findCluster(tx, ty, matchtype, reset, skipremoved) {
+        // Reset the processed flags
+        if (reset) {
+            resetProcessed();
+        }
+        
+        // Get the target tile. Tile coord must be valid.
+        var targettile = level.tiles[tx][ty];
+        
+        // Initialize the toprocess array with the specified tile
+        var toprocess = [targettile];
+        targettile.processed = true;
+        var foundcluster = [];
+
+        while (toprocess.length > 0) {
+            // Pop the last element from the array
+            var currenttile = toprocess.pop();
+            
+            // Skip processed and empty tiles
+            if (currenttile.type == -1) {
+                continue;
+            }
+            
+            // Skip tiles with the removed flag
+            if (skipremoved && currenttile.removed) {
+                continue;
+            }
+            
+            // Check if current tile has the right type, if matchtype is true
+            if (!matchtype || (currenttile.type == targettile.type)) {
+                // Add current tile to the cluster
+                foundcluster.push(currenttile);
+                
+                // Get the neighbors of the current tile
+                var neighbors = getNeighbors(currenttile);
+                
+                // Check the type of each neighbor
+                for (var i=0; i<neighbors.length; i++) {
+                    if (!neighbors[i].processed) {
+                        // Add the neighbor to the toprocess array
+                        toprocess.push(neighbors[i]);
+                        neighbors[i].processed = true;
+                    }
+                }
+            }
+        }
+        
+        // Return the found cluster
+        return foundcluster;
+    }
+    
+    // Find floating clusters
+    function findFloatingClusters() {
+        // Reset the processed flags
+        resetProcessed();
+        
+        var foundclusters = [];
+        
+        // Check all tiles
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows; j++) {
+                var tile = level.tiles[i][j];
+                if (!tile.processed) {
+                    // Find all attached tiles
+                    var foundcluster = findCluster(i, j, false, false, true);
+                    
+                    // There must be a tile in the cluster
+                    if (foundcluster.length <= 0) {
+                        continue;
+                    }
+                    
+                    // Check if the cluster is floating
+                    var floating = true;
+                    for (var k=0; k<foundcluster.length; k++) {
+                        if (foundcluster[k].y == 0) {
+                            // Tile is attached to the roof
+                            floating = false;
+                            break;
+                        }
+                    }
+                    
+                    if (floating) {
+                        // Found a floating cluster
+                        foundclusters.push(foundcluster);
+                    }
+                }
+            }
+        }
+        
+        return foundclusters;
+    }
+    
+    // Reset the processed flags
+    function resetProcessed() {
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows; j++) {
+                level.tiles[i][j].processed = false;
+            }
+        }
+    }
+    
+    // Reset the removed flags
+    function resetRemoved() {
+        for (var i=0; i<level.columns; i++) {
+            for (var j=0; j<level.rows; j++) {
+                level.tiles[i][j].removed = false;
+            }
+        }
+    }
+    
+    // Get the neighbors of the specified tile
+    function getNeighbors(tile) {
+        var tilerow = (tile.y + rowoffset) % 2; // Even or odd row
+        var neighbors = [];
+        
+        // Get the neighbor offsets for the specified tile
+        var n = neighborsoffsets[tilerow];
+        
+        // Get the neighbors
+        for (var i=0; i<n.length; i++) {
+            // Neighbor coordinate
+            var nx = tile.x + n[i][0];
+            var ny = tile.y + n[i][1];
+            
+            // Make sure the tile is valid
+            if (nx >= 0 && nx < level.columns && ny >= 0 && ny < level.rows) {
+                neighbors.push(level.tiles[nx][ny]);
+            }
+        }
+        
+        return neighbors;
+    }
+    
+    function updateFps(dt) {
+        if (fpstime > 0.25) {
+            // Calculate fps
+            fps = Math.round(framecount / fpstime);
+            
+            // Reset time and framecount
+            fpstime = 0;
+            framecount = 0;
+        }
+        
+        // Increase time and framecount
+        fpstime += dt;
+        framecount++;
+    }
+    
+    // Draw text that is centered
+    function drawCenterText(text, x, y, width) {
+        var textdim = context.measureText(text);
+        context.fillText(text, x + (width-textdim.width)/2, y);
+    }
+    
+    // Render the game
+    function render() {
+        // Draw the frame around the game
+        drawFrame();
+        
+        var yoffset =  level.tileheight/2;
+        
+        // Draw level background
+        context.fillStyle = "#8c8c8c";
+        context.fillRect(level.x - 4, level.y - 4, level.width + 8, level.height + 4 - yoffset);
+        
+        // Render tiles
+        renderTiles();
+        
+        // Draw level bottom
+        context.fillStyle = "#656565";
+        context.fillRect(level.x - 4, level.y - 4 + level.height + 4 - yoffset, level.width + 8, 2*level.tileheight + 3);
+        
+        // Draw score
+        context.fillStyle = "#ffffff";
+        context.font = "18px Verdana";
+        var scorex = level.x + level.width - 150;
+        var scorey = level.y+level.height + level.tileheight - yoffset - 8;
+        drawCenterText("Punkte:", scorex, scorey, 150);
+        context.font = "24px Verdana";
+        drawCenterText(score, scorex, scorey+30, 150);
+
+        // Render cluster
+        if (showcluster) {
+            renderCluster(cluster, 255, 128, 128);
+            
+            for (var i=0; i<floatingclusters.length; i++) {
+                var col = Math.floor(100 + 100 * i / floatingclusters.length);
+                renderCluster(floatingclusters[i], col, col, col);
+            }
+        }
+        
+        
+        // Render player bubble
+        renderPlayer();
+        
+        // Game Over overlay
+        if (gamestate == gamestates.gameover) {
+            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+            context.fillRect(level.x - 4, level.y - 4, level.width + 8, level.height + 2 * level.tileheight + 8 - yoffset);
+            
+            context.fillStyle = "#ffffff";
+            context.font = "24px Verdana";
+            drawCenterText("Game Over!", level.x, level.y + level.height / 2 + 10, level.width);
+            drawCenterText("Click to start", level.x, level.y + level.height / 2 + 40, level.width);
+        }
+    }
+    
+    // Draw a frame around the game
+    function drawFrame() {
+        // Draw background
+        context.fillStyle = "#e8eaec";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw header
+        context.fillStyle = "#303030";
+        context.fillRect(0, 0, canvas.width, 79);
+        
+        // Draw title
+        context.fillStyle = "#ffffff";
+        context.font = "24px Verdana";
+        context.fillText("Alles Gute zum Geburtstag Julius!", 10, 37);
+        
+        // Display fps
+        context.fillStyle = "#ffffff";
+        context.font = "12px Verdana";
+        context.fillText("Fps: " + fps, 13, 57);
+    }
+    
+    // Render tiles
+    function renderTiles() {
+        // Top to bottom
+        for (var j=0; j<level.rows; j++) {
+            for (var i=0; i<level.columns; i++) {
+                // Get the tile
+                var tile = level.tiles[i][j];
+            
+                // Get the shift of the tile for animation
+                var shift = tile.shift;
+                
+                // Calculate the tile coordinates
+                var coord = getTileCoordinate(i, j);
+                
+                // Check if there is a tile present
+                if (tile.type >= 0) {
+                    // Support transparency
+                    context.save();
+                    context.globalAlpha = tile.alpha;
+                    
+                    // Draw the tile using the color
+                    drawBubble(coord.tilex, coord.tiley + shift, tile.type);
+                    
+                    context.restore();
+                }
+            }
+        }
+    }
+    
+    // Render cluster
+    function renderCluster(cluster, r, g, b) {
+        for (var i=0; i<cluster.length; i++) {
+            // Calculate the tile coordinates
+            var coord = getTileCoordinate(cluster[i].x, cluster[i].y);
+            
+            // Draw the tile using the color
+            context.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+            context.fillRect(coord.tilex+level.tilewidth/4, coord.tiley+level.tileheight/4, level.tilewidth/2, level.tileheight/2);
+        }
+    }
+    
+    // Render the player bubble
+    function renderPlayer() {
+        var centerx = player.x + level.tilewidth/2;
+        var centery = player.y + level.tileheight/2;
+        
+        // Draw player background circle
+        context.fillStyle = "#7a7a7a";
+        context.beginPath();
+        context.arc(centerx, centery, level.radius+12, 0, 2*Math.PI, false);
+        context.fill();
+        context.lineWidth = 2;
+        context.strokeStyle = "#8c8c8c";
+        context.stroke();
+
+        // Draw the angle
+        context.lineWidth = 2;
+        context.strokeStyle = "#0000ff";
+        context.beginPath();
+        context.moveTo(centerx, centery);
+        context.lineTo(centerx + 1.5*level.tilewidth * Math.cos(degToRad(player.angle)), centery - 1.5*level.tileheight * Math.sin(degToRad(player.angle)));
+        context.stroke();
+        
+        // Draw the next bubble
+        drawBubble(player.nextbubble.x, player.nextbubble.y, player.nextbubble.tiletype);
+        
+        // Draw the bubble
+        if (player.bubble.visible) {
+            drawBubble(player.bubble.x, player.bubble.y, player.bubble.tiletype);
+        }
+        
+    }
+    
+    // Get the tile coordinate
+    function getTileCoordinate(column, row) {
+        var tilex = level.x + column * level.tilewidth;
+        
+        // X offset for odd or even rows
+        if ((row + rowoffset) % 2) {
+            tilex += level.tilewidth/2;
+        }
+        
+        var tiley = level.y + row * level.rowheight;
+        return { tilex: tilex, tiley: tiley };
+    }
+    
+    // Get the closest grid position
+    function getGridPosition(x, y) {
+        var gridy = Math.floor((y - level.y) / level.rowheight);
+        
+        // Check for offset
+        var xoffset = 0;
+        if ((gridy + rowoffset) % 2) {
+            xoffset = level.tilewidth / 2;
+        }
+        var gridx = Math.floor(((x - xoffset) - level.x) / level.tilewidth);
+        
+        return { x: gridx, y: gridy };
+    }
+
+    
+    // Draw the bubble
+    function drawBubble(x, y, index) {
+        if (index < 0 || index >= bubblecolors)
+            return;
+        
+        // Draw the bubble sprite
+        context.drawImage(bubbleimage, index * 40, 0, 40, 40, x, y, level.tilewidth, level.tileheight);
+    }
+    
+    // Start a new game
+    function newGame() {
+        // Reset score
+        score = 0;
+        
+        turncounter = 0;
+        rowoffset = 0;
+        
+        // Set the gamestate to ready
+        setGameState(gamestates.ready);
+        
+        // Create the level
+        createLevel();
+
+        // Init the next bubble and set the current bubble
+        nextBubble();
+        nextBubble();
+    }
+    
+    // Create a random level
+    function createLevel() {
+        // Create a level with random tiles
+        for (var j=0; j<level.rows; j++) {
+            var randomtile = randRange(0, bubblecolors-1);
+            var count = 0;
+            for (var i=0; i<level.columns; i++) {
+                if (count >= 2) {
+                    // Change the random tile
+                    var newtile = randRange(0, bubblecolors-1);
+                    
+                    // Make sure the new tile is different from the previous tile
+                    if (newtile == randomtile) {
+                        newtile = (newtile + 1) % bubblecolors;
+                    }
+                    randomtile = newtile;
+                    count = 0;
+                }
+                count++;
+                
+                if (j < level.rows/2) {
+                    level.tiles[i][j].type = randomtile;
+                } else {
+                    level.tiles[i][j].type = -1;
+                }
+            }
+        }
+    }
+    
+    // Create a random bubble for the player
+    function nextBubble() {
+        // Set the current bubble
+        player.tiletype = player.nextbubble.tiletype;
+        player.bubble.tiletype = player.nextbubble.tiletype;
+        player.bubble.x = player.x;
+        player.bubble.y = player.y;
+        player.bubble.visible = true;
+        
+        // Get a random type from the existing colors
+        var nextcolor = getExistingColor();
+        
+        // Set the next bubble
+        player.nextbubble.tiletype = nextcolor;
+    }
+    
+    // Get a random existing color
+    function getExistingColor() {
+        existingcolors = findColors();
+        
+        var bubbletype = 0;
+        if (existingcolors.length > 0) {
+            bubbletype = existingcolors[randRange(0, existingcolors.length-1)];
+        }
+        
+        return bubbletype;
+    }
+    
+    // Get a random int between low and high, inclusive
+    function randRange(low, high) {
+        return Math.floor(low + Math.random()*(high-low+1));
+    }
+    
+    // Shoot the bubble
+    function shootBubble() {
+        // Shoot the bubble in the direction of the mouse
+        player.bubble.x = player.x;
+        player.bubble.y = player.y;
+        player.bubble.angle = player.angle;
+        player.bubble.tiletype = player.tiletype;
+
+        // Set the gamestate
+        setGameState(gamestates.shootbubble);
+    }
+    
+    // Check if two circles intersect
+    function circleIntersection(x1, y1, r1, x2, y2, r2) {
+        // Calculate the distance between the centers
+        var dx = x1 - x2;
+        var dy = y1 - y2;
+        var len = Math.sqrt(dx * dx + dy * dy);
+        
+        if (len < r1 + r2) {
+            // Circles intersect
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Convert radians to degrees
+    function radToDeg(angle) {
+        return angle * (180 / Math.PI);
+    }
+    
+    // Convert degrees to radians
+    function degToRad(angle) {
+        return angle * (Math.PI / 180);
+    }
+
+    // On mouse movement
+    function onMouseMove(e) {
+        // Get the mouse position
+        var pos = getMousePos(canvas, e);
+
+        // Get the mouse angle
+        var mouseangle = radToDeg(Math.atan2((player.y+level.tileheight/2) - pos.y, pos.x - (player.x+level.tilewidth/2)));
+
+        // Convert range to 0, 360 degrees
+        if (mouseangle < 0) {
+            mouseangle = 180 + (180 + mouseangle);
+        }
+
+        // Restrict angle to 8, 172 degrees
+        var lbound = 8;
+        var ubound = 172;
+        if (mouseangle > 90 && mouseangle < 270) {
+            // Left
+            if (mouseangle > ubound) {
+                mouseangle = ubound;
+            }
+        } else {
+            // Right
+            if (mouseangle < lbound || mouseangle >= 270) {
+                mouseangle = lbound;
+            }
+        }
+
+        // Set the player angle
+        player.angle = mouseangle;
+    }
+    
+    // On mouse button click
+    function onMouseDown(e) {
+        // Get the mouse position
+        var pos = getMousePos(canvas, e);
+        
+        if (gamestate == gamestates.ready) {
+            shootBubble();
+        } else if (gamestate == gamestates.gameover) {
+            newGame();
+        }
+    }
+    
+    // Get the mouse position
+    function getMousePos(canvas, e) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.round((e.clientX - rect.left)/(rect.right - rect.left)*canvas.width),
+            y: Math.round((e.clientY - rect.top)/(rect.bottom - rect.top)*canvas.height)
+        };
+    }
+    
+    // Call init to start the game
+    init();
+};  
+</script>
+</head>
+
+<body>
+
+<canvas id="viewport" width="628" height="628"></canvas>
+
+</body>
+
+</html> 
