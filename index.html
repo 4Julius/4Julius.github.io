@@ -95,7 +95,7 @@ window.onload = function() {
     var bubblecolors = 7;
     
     // Game states
-    var gamestates = { init: 0, ready: 1, shootbubble: 2, removecluster: 3, gameover: 4 };
+    var gamestates = { init: 0, ready: 1, shootbubble: 2, removecluster: 3, gameover: 4, gamewon: 5 };
     var gamestate = gamestates.init;
     
     // Score
@@ -402,7 +402,7 @@ window.onload = function() {
                     setGameState(gamestates.ready);
                 } else {
                     // No tiles left, game over
-                    setGameState(gamestates.gameover);
+                    setGameState(gamestates.gamewon);
                 }
             }
         }
@@ -747,8 +747,19 @@ window.onload = function() {
             
             context.fillStyle = "#ffffff";
             context.font = "24px Verdana";
-            drawCenterText("Game Over!", level.x, level.y + level.height / 2 + 10, level.width);
-            drawCenterText("Click to start", level.x, level.y + level.height / 2 + 40, level.width);
+            drawCenterText("Verloren!", level.x, level.y + level.height / 2 + 10, level.width);
+            drawCenterText("Klicke um neu zu beginnen", level.x, level.y + level.height / 2 + 40, level.width);
+        }
+      
+              if (gamestate == gamestates.gamewon) {
+            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+            context.fillRect(level.x - 4, level.y - 4, level.width + 8, level.height + 2 * level.tileheight + 8 - yoffset);
+            
+            context.fillStyle = "#ffffff";
+            context.font = "24px Verdana";
+            drawCenterText("Gratulation Julius!", level.x, level.y + level.height / 2 + 10, level.width);
+            drawCenterText("Punkte: " + score, level.x, level.y + level.height / 2 + 40, level.width);
+            drawCenterText("Klicke um neu zu beginnen", level.x, level.y + level.height / 2 + 70, level.width);
         }
     }
     
@@ -765,7 +776,7 @@ window.onload = function() {
         // Draw title
         context.fillStyle = "#ffffff";
         context.font = "24px Verdana";
-        context.fillText("Alles Gute zum Geburtstag Julius!", 10, 37);
+        context.fillText("Viel Spaß Julius!", 10, 37);
         
         // Display fps
         context.fillStyle = "#ffffff";
@@ -1042,6 +1053,8 @@ window.onload = function() {
             shootBubble();
         } else if (gamestate == gamestates.gameover) {
             newGame();
+        } else if (gamestate == gamestates.gamewon) {
+            newGame();
         }
     }
     
@@ -1062,7 +1075,7 @@ window.onload = function() {
 
 <body>
 
-<canvas id="viewport" width="628" height="628"></canvas>
+<canvas id="viewport" width="628" height="628"></canvas><br/>
     Basiert auf: <a href="http://rembound.com/articles/bubble-shooter-game-tutorial-with-html5-and-javascript">Link</a>
 </body>
 
